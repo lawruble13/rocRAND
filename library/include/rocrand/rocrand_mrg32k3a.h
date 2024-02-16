@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2017-2022 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -89,7 +89,7 @@ public:
     /// New seed value should not be zero. If \p seed_value is equal
     /// zero, value \p ROCRAND_MRG32K3A_DEFAULT_SEED is used instead.
     ///
-    /// A subsequence is 2^67 numbers long.
+    /// A subsequence is 2^76 numbers long.
     FQUALIFIERS
     mrg32k3a_engine(const unsigned long long seed,
                     const unsigned long long subsequence,
@@ -105,7 +105,7 @@ public:
     /// New seed value should not be zero. If \p seed_value is equal
     /// zero, value \p ROCRAND_MRG32K3A_DEFAULT_SEED is used instead.
     ///
-    /// A subsequence is 2^67 numbers long.
+    /// A subsequence is 2^76 numbers long.
     FQUALIFIERS
     void seed(unsigned long long seed_value,
               const unsigned long long subsequence,
@@ -134,7 +134,7 @@ public:
     }
 
     /// Advances the internal state to skip \p subsequence subsequences.
-    /// A subsequence is 2^67 numbers long.
+    /// A subsequence is 2^76 numbers long.
     FQUALIFIERS
     void discard_subsequence(unsigned long long subsequence)
     {
@@ -223,11 +223,11 @@ protected:
         while(subsequence > 0) {
             if (subsequence & 1) {
                 #if defined(__HIP_DEVICE_COMPILE__)
-                mod_mat_vec_m1(d_A1P67 + i, m_state.g1);
-                mod_mat_vec_m2(d_A2P67 + i, m_state.g2);
+                mod_mat_vec_m1(d_A1P76 + i, m_state.g1);
+                mod_mat_vec_m2(d_A2P76 + i, m_state.g2);
                 #else
-                mod_mat_vec_m1(h_A1P67 + i, m_state.g1);
-                mod_mat_vec_m2(h_A2P67 + i, m_state.g2);
+                mod_mat_vec_m1(h_A1P76 + i, m_state.g1);
+                mod_mat_vec_m2(h_A2P76 + i, m_state.g2);
                 #endif
             }
             subsequence >>= 1;
@@ -288,7 +288,7 @@ protected:
 
 private:
     FQUALIFIERS
-    void mod_mat_vec_m1(const unsigned long long * A,
+    static void mod_mat_vec_m1(const unsigned long long * A,
                         unsigned int * s)
     {
         unsigned long long x[3];
@@ -311,7 +311,7 @@ private:
     }
 
     FQUALIFIERS
-    void mod_mat_vec_m2(const unsigned long long * A,
+    static void mod_mat_vec_m2(const unsigned long long * A,
                         unsigned int * s)
     {
         unsigned long long x[3];
@@ -334,7 +334,7 @@ private:
     }
 
     FQUALIFIERS
-    unsigned long long mod_mul_m1(unsigned int i,
+    static unsigned long long mod_mul_m1(unsigned int i,
                                   unsigned long long j)
     {
         long long hi, lo, temp1, temp2;
@@ -351,7 +351,7 @@ private:
     }
 
     FQUALIFIERS
-    unsigned long long mod_m1(unsigned long long p)
+    static unsigned long long mod_m1(unsigned long long p)
     {
         p = detail::mad_u64_u32(ROCRAND_MRG32K3A_M1C, (p >> 32), p & (ROCRAND_MRG32K3A_POW32 - 1));
         if (p >= ROCRAND_MRG32K3A_M1)
@@ -361,7 +361,7 @@ private:
     }
 
     FQUALIFIERS
-    unsigned long long mod_mul_m2(unsigned int i,
+    static unsigned long long mod_mul_m2(unsigned int i,
                                   unsigned long long j)
     {
         long long hi, lo, temp1, temp2;
@@ -378,7 +378,7 @@ private:
     }
 
     FQUALIFIERS
-    unsigned long long mod_m2(unsigned long long p)
+    static unsigned long long mod_m2(unsigned long long p)
     {
         p = detail::mad_u64_u32(ROCRAND_MRG32K3A_M2C, (p >> 32), p & (ROCRAND_MRG32K3A_POW32 - 1));
         p = detail::mad_u64_u32(ROCRAND_MRG32K3A_M2C, (p >> 32), p & (ROCRAND_MRG32K3A_POW32 - 1));
@@ -466,7 +466,7 @@ void skipahead(unsigned long long offset, rocrand_state_mrg32k3a * state)
  * \brief Updates MRG32K3A state to skip ahead by \p subsequence subsequences.
  *
  * Updates the MRG32K3A state in \p state to skip ahead by \p subsequence subsequences.
- * Each subsequence is 2^67 numbers long.
+ * Each subsequence is 2^76 numbers long.
  *
  * \param subsequence - Number of subsequences to skip
  * \param state - Pointer to state to update

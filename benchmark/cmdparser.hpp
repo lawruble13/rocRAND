@@ -95,7 +95,7 @@ namespace cli {
                 CmdBase(name, alternative, description, required, dominant, ArgumentCountChecker<T>::Variadic) {
             }
 
-            virtual bool parse(std::ostream& output, std::ostream& error) {
+            bool parse(std::ostream& output, std::ostream& error) override {
                 try {
                     CallbackArgs args { arguments, output, error };
                     value = callback(args);
@@ -105,7 +105,7 @@ namespace cli {
                 }
             }
 
-            virtual std::string print_value() const {
+            std::string print_value() const override {
                 return "";
             }
 
@@ -120,7 +120,7 @@ namespace cli {
                 CmdBase(name, alternative, description, required, dominant, ArgumentCountChecker<T>::Variadic) {
             }
 
-            virtual bool parse(std::ostream&, std::ostream&) {
+            bool parse(std::ostream&, std::ostream&) override {
                 try {
                     value = Parser::parse(arguments, value);
                     return true;
@@ -129,11 +129,11 @@ namespace cli {
                 }
             }
 
-            virtual std::string print_value() const {
+            std::string print_value() const override {
                 return stringify(value);
             }
 
-            T value;
+            T value {};
         };
 
         static int parse(const std::vector<std::string>& elements, const int&) {
@@ -184,6 +184,13 @@ namespace cli {
 
             return std::stoul(elements[0]);
         }
+		
+        static unsigned long long parse(const std::vector<std::string>& elements, const unsigned long long&) {
+            if (elements.size() != 1)
+                throw std::bad_cast();
+
+            return std::stoull(elements[0]);
+        }		
 
         static long parse(const std::vector<std::string>& elements, const long&) {
             if (elements.size() != 1)
@@ -298,7 +305,7 @@ namespace cli {
         }
 
         template<typename T>
-        void set_optional(const std::string& name, const std::string& alternative, T defaultValue, const std::string& description = "", bool dominant = false) {
+        void set_optional(const std::string& name, const std::string& alternative, const T& defaultValue, const std::string& description = "", bool dominant = false) {
             auto command = new CmdArgument<T> { name, alternative, description, false, dominant };
             command->value = defaultValue;
             _commands.push_back(command);

@@ -1,4 +1,4 @@
-// Copyright (c) 2017-2021 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2017-2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -70,8 +70,7 @@ namespace detail {
         typedef ::rocrand_device::philox4x32_10_engine base_type;
         typedef base_type::philox4x32_10_state state_type;
 
-        __forceinline__ __device__ __host__
-        philox4x32_10_device_engine() { }
+        __forceinline__ __device__ __host__ philox4x32_10_device_engine() = default;
 
         __forceinline__ __device__ __host__
         philox4x32_10_device_engine(const unsigned long long seed,
@@ -82,11 +81,7 @@ namespace detail {
 
         }
 
-        __forceinline__ __device__ __host__
-        ~philox4x32_10_device_engine () {}
-
-        __forceinline__ __device__ __host__
-        uint4 next4_leap(unsigned int leap)
+        __forceinline__ __device__ __host__ uint4 next4_leap(unsigned int leap)
         {
             uint4 ret = m_state.result;
             if(m_state.substate > 0) {
@@ -120,8 +115,8 @@ namespace detail {
 
         using vec_type = aligned_vec_type<T, output_per_thread * output_width>;
 
-        const unsigned int thread_id = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
-        const unsigned int stride = hipGridDim_x * hipBlockDim_x;
+        const unsigned int thread_id = blockIdx.x * blockDim.x + threadIdx.x;
+        const unsigned int stride    = gridDim.x * blockDim.x;
 
         unsigned int input[input_width];
         T output[output_per_thread][output_width];
@@ -211,11 +206,11 @@ public:
     using base_type = rocrand_generator_type<ROCRAND_RNG_PSEUDO_PHILOX4_32_10>;
     using engine_type = ::rocrand_host::detail::philox4x32_10_device_engine;
 
-    rocrand_philox4x32_10(unsigned long long seed = 0,
+    rocrand_philox4x32_10(unsigned long long seed   = 0,
                           unsigned long long offset = 0,
-                          hipStream_t stream = 0)
-        : base_type(seed, offset, stream),
-          m_engines_initialized(false)
+                          rocrand_ordering   order  = ROCRAND_ORDERING_PSEUDO_DEFAULT,
+                          hipStream_t        stream = 0)
+        : base_type(order, seed, offset, stream), m_engines_initialized(false)
     {
     }
 
@@ -234,6 +229,12 @@ public:
     void set_offset(unsigned long long offset)
     {
         m_offset = offset;
+        m_engines_initialized = false;
+    }
+
+    void set_order(rocrand_ordering order)
+    {
+        m_order               = order;
         m_engines_initialized = false;
     }
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2017-2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -153,13 +153,14 @@ class mtgp32_engine
 {
 public:
     FQUALIFIERS
-    mtgp32_engine()
+    // Initialization is not supported for __shared__ variables
+    mtgp32_engine() // cppcheck-suppress uninitMemberVar
     {
 
     }
 
     FQUALIFIERS
-    mtgp32_engine(const mtgp32_state m_state,
+    mtgp32_engine(const mtgp32_state &m_state,
                   const mtgp32_params * params,
                   int bid)
     {
@@ -178,9 +179,9 @@ public:
     FQUALIFIERS
     void copy(const mtgp32_engine * m_engine)
     {
-        #if defined(__HIP_DEVICE_COMPILE__)
-        const unsigned int thread_id = hipThreadIdx_x;
-        for (int i = thread_id; i < MTGP_STATE; i += hipBlockDim_x)
+#if defined(__HIP_DEVICE_COMPILE__) || defined(USE_HIP_CPU)
+        const unsigned int thread_id = threadIdx.x;
+        for(int i = thread_id; i < MTGP_STATE; i += blockDim.x)
             m_state.status[i] = m_engine->m_state.status[i];
 
         if (thread_id == 0)
@@ -199,7 +200,7 @@ public:
             single_temper_tbl[thread_id] = m_engine->single_temper_tbl[thread_id];
         }
         __syncthreads();
-        #else
+#else
         this->m_state = m_engine->m_state;
         pos_tbl = m_engine->pos_tbl;
         sh1_tbl = m_engine->sh1_tbl;
@@ -210,7 +211,7 @@ public:
             temper_tbl[j] = m_engine->temper_tbl[j];
             single_temper_tbl[j] = m_engine->single_temper_tbl[j];
         }
-        #endif
+#endif
     }
 
     FQUALIFIERS
@@ -236,9 +237,9 @@ public:
     FQUALIFIERS
     unsigned int next()
     {
-        #if defined(__HIP_DEVICE_COMPILE__)
-        unsigned int t = hipThreadIdx_x;
-        unsigned int d = hipBlockDim_x;
+#if defined(__HIP_DEVICE_COMPILE__) || defined(USE_HIP_CPU)
+        unsigned int t   = threadIdx.x;
+        unsigned int d   = blockDim.x;
         int pos = pos_tbl;
         unsigned int r;
         unsigned int o;
@@ -254,17 +255,17 @@ public:
             m_state.offset = (m_state.offset + d) & MTGP_MASK;
         __syncthreads();
         return o;
-        #else
+#else
         return 0;
-        #endif
+#endif
     }
 
     FQUALIFIERS
     unsigned int next_single()
     {
-        #if defined(__HIP_DEVICE_COMPILE__)
-        unsigned int t = hipThreadIdx_x;
-        unsigned int d = hipBlockDim_x;
+#if defined(__HIP_DEVICE_COMPILE__) || defined(USE_HIP_CPU)
+        unsigned int t   = threadIdx.x;
+        unsigned int d   = blockDim.x;
         int pos = pos_tbl;
         unsigned int r;
         unsigned int o;
@@ -280,14 +281,14 @@ public:
             m_state.offset = (m_state.offset + d) & MTGP_MASK;
         __syncthreads();
         return o;
-        #else
+#else
         return 0;
-        #endif
+#endif
     }
 
 private:
     FQUALIFIERS
-    unsigned int para_rec(unsigned int X1, unsigned int X2, unsigned int Y)
+    unsigned int para_rec(unsigned int X1, unsigned int X2, unsigned int Y) const
     {
         unsigned int X = (X1 & mask) ^ X2;
         unsigned int MAT;
@@ -299,7 +300,7 @@ private:
     }
 
     FQUALIFIERS
-    unsigned int temper(unsigned int V, unsigned int T)
+    unsigned int temper(unsigned int V, unsigned int T) const
     {
         unsigned int MAT;
 
@@ -310,7 +311,7 @@ private:
     }
 
     FQUALIFIERS
-    unsigned int temper_single(unsigned int V, unsigned int T)
+    unsigned int temper_single(unsigned int V, unsigned int T) const 
     {
         unsigned int MAT;
         unsigned int r;
@@ -512,11 +513,11 @@ unsigned int rocrand(rocrand_state_mtgp32 * state)
  *
  * \code
  * __global__
- * void generate_kernel(hiprandStateMtgp32_t * states, unsigned int * output, const size_t size)
+ * void generate_kernel(rocrand_state_mtgp32 * states, unsigned int * output, const size_t size)
  * {
- *      const unsigned int state_id = hipBlockIdx_x;
- *      unsigned int index = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
- *      unsigned int stride = hipGridDim_x * hipBlockDim_x;
+ *      const unsigned int state_id = blockIdx.x;
+ *      unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+ *      unsigned int stride = gridDim.x * blockDim.x;
  *
  *      __shared__ GeneratorState state;
  *      rocrand_mtgp32_block_copy(&states[state_id], &state);

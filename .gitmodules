@@ -1,4 +1,0 @@
-[submodule "hipRAND"]
-	path = hipRAND
-	url = ../../ROCmSoftwarePlatform/hipRAND.git
-	branch = develop

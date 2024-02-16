@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2017-2022 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -59,7 +59,7 @@ void mul_mat_vec_inplace(const unsigned int * m, unsigned int * v)
     {
         const int i = ij / XORWOW_M;
         const int j = ij % XORWOW_M;
-        const unsigned int b = (v[i] & (1 << j)) ? 0xffffffff : 0x0;
+        const unsigned int b = (v[i] & (1U << j)) ? 0xffffffff : 0x0;
         for (int k = 0; k < XORWOW_N; k++)
         {
             r[k] ^= b & m[i * XORWOW_M * XORWOW_N + j * XORWOW_N + k];

@@ -12,28 +12,6 @@ import java.nio.file.Path
 def runCompileCommand(platform, project, jobName, boolean debug=false)
 {
     project.paths.construct_build_prefix()
-
-    def command = """#!/usr/bin/env bash
-            set -ex
-            make -C ${project.paths.project_build_prefix}/python/rocrand/docs html
-            """
-
-    try
-    {
-        platform.runCommand(this, command)
-    }
-    catch(e)
-    {
-        throw e
-    }
-
-    publishHTML([allowMissing: false,
-                alwaysLinkToLastBuild: false,
-                keepAll: false,
-                reportDir: "${project.paths.project_build_prefix}/python/rocrand/docs/build/html",
-                reportFiles: "index.html",
-                reportName: "Documentation",
-                reportTitles: "Documentation"])
 }
 
 def runCI =
@@ -63,6 +41,6 @@ ci: {
 
     properties(auxiliary.addCommonProperties([pipelineTriggers([cron('0 1 * * 6')])]))
     stage(urlJobName) {
-        runCI([ubuntu18:['cpu']], urlJobName)
+        runCI([ubuntu20:['cpu']], urlJobName)
     }
 }

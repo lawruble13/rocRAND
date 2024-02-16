@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Copyright 2020-2021 Advanced Micro Devices, Inc.
+"""Copyright 2020-2023 Advanced Micro Devices, Inc.  All rights reserved.
 Manage build and installation"""
 
 import re
@@ -37,8 +37,8 @@ def parse_args():
                         help='Install after build (default: False)')
     parser.add_argument(      '--cmake-darg', required=False, dest='cmake_dargs', action='append', default=[],
                         help='List of additional cmake defines for builds (e.g. CMAKE_CXX_COMPILER_LAUNCHER=ccache)')
-    parser.add_argument('-a', '--architecture', dest='gpu_architecture', required=False, default="gfx906;gfx1030", #:sramecc+:xnack-" ) #gfx1030" ) #gfx906" ) # gfx1030" )
-                        help='Set GPU architectures, e.g. all, gfx000, gfx803, gfx906:xnack-;gfx1030 (optional, default: all)')
+    parser.add_argument('-a', '--architecture', dest='gpu_architecture', required=False, default="gfx906;gfx1030;gfx1100;gfx1101;gfx1102", #:sramecc+:xnack-" ) #gfx1030" ) #gfx906" ) # gfx1030" )
+                        help='Set GPU architectures, e.g. all, gfx000, gfx803, gfx906:xnack-;gfx1030;gfx1100 (optional, default: all)')
     parser.add_argument('-v', '--verbose', required=False, default=False, action='store_true',
                         help='Verbose build (default: False)')
     return parser.parse_args()
@@ -75,6 +75,12 @@ def delete_dir(dir_path) :
         #print( linux_path )
         run_cmd( "rm" , f"-rf {linux_path}")
 
+def cmake_path(os_path):
+    if OS_info["ID"] == "windows":
+        return os_path.replace("\\", "/")
+    else:
+        return os.path.realpath(os_path)  
+        
 def config_cmd():
     global args
     global OS_info
@@ -88,7 +94,8 @@ def config_cmd():
     
     if (OS_info["ID"] == 'windows'):
         # we don't have ROCM on windows but have hip, ROCM can be downloaded if required
-        rocm_path = os.getenv( 'ROCM_PATH', "C:/github/rocm-cmake-master") #C:/hip") # rocm/Utils/cmake-rocm4.2.0"
+        raw_rocm_path = cmake_path(os.getenv('HIP_PATH', "C:/hip"))
+        rocm_path = f'"{raw_rocm_path}"' # guard against spaces in path
         cmake_executable = "cmake.exe"
         toolchain = os.path.join( src_path, "toolchain-windows.cmake" )
         #set CPACK_PACKAGING_INSTALL_PREFIX= defined as blank as it is appended to end of path for archive creation
@@ -128,7 +135,7 @@ def config_cmd():
         deps_dir = os.path.abspath(os.path.join(build_dir, 'deps')).replace('\\','/')
     else:
         deps_dir = args.deps_dir
-    cmake_base_options = f"-DROCM_PATH={rocm_path} -DCMAKE_PREFIX_PATH:PATH={rocm_path} -Drocrand_EXPORTS=1 -Dhiprand_EXPORTS=1"
+    cmake_base_options = f"-DROCM_PATH={rocm_path} -DCMAKE_PREFIX_PATH:PATH={rocm_path} -Drocrand_EXPORTS=1"
     cmake_options.append( cmake_base_options )
 
     print( cmake_options )
@@ -146,7 +153,7 @@ def config_cmd():
         cmake_options.append( f"-DROCM_DISABLE_LDCONFIG=ON" )
 
     if args.build_clients:
-        cmake_options.append( f"-DBUILD_TEST=ON -DBUILD_DIR={build_dir}" )
+        cmake_options.append( f"-DBUILD_TEST=ON -DBUILD_BENCHMARK=ON -DBUILD_DIR={build_dir}" )
 
     cmake_options.append( f"-DAMDGPU_TARGETS={args.gpu_architecture}" )
 
@@ -161,7 +168,7 @@ def config_cmd():
 #     cmake_options="${cmake_options} -DCMAKE_FIND_ROOT_PATH=/usr/lib64/llvm7.0/lib/cmake/"
 #     ;;
 #     windows)
-#     cmake_options="${cmake_options} -DWIN32=ON -DROCM_PATH=${rocm_path} -DROCM_DIR:PATH=${rocm_path} -DCMAKE_PREFIX_PATH:PATH=${rocm_path}"
+#     cmake_options="${cmake_options} -DROCM_PATH=${rocm_path} -DROCM_DIR:PATH=${rocm_path} -DCMAKE_PREFIX_PATH:PATH=${rocm_path}"
 #     cmake_options="${cmake_options} --debug-trycompile -DCMAKE_MAKE_PROGRAM=nmake.exe -DCMAKE_TOOLCHAIN_FILE=toolchain-windows.cmake"
 #     # -G '"NMake Makefiles JOM"'"
 #     ;;

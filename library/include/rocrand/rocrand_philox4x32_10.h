@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2017-2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -123,7 +123,7 @@ public:
     /// seed value \p seed, goes to \p subsequence -th subsequence,
     /// and skips \p offset random numbers.
     ///
-    /// A subsequence is 4 * 2^64 numbers long.
+    /// A subsequence consists of 2 ^ 66 random numbers.
     FQUALIFIERS
     philox4x32_10_engine(const unsigned long long seed,
                          const unsigned long long subsequence,
@@ -136,7 +136,7 @@ public:
     /// seed value \p seed_value, skips \p subsequence subsequences
     /// and \p offset random numbers.
     ///
-    /// A subsequence is 4 * 2^64 numbers long.
+    /// A subsequence consists of 2 ^ 66 random numbers.
     FQUALIFIERS
     void seed(unsigned long long seed_value,
               const unsigned long long subsequence,
@@ -155,8 +155,10 @@ public:
         this->m_state.result = this->ten_rounds(m_state.counter, m_state.key);
     }
 
-    /// Advances the internal state to skip \p subsequence subsequences.
-    /// A subsequence is 4 * 2^64 numbers long.
+    /// Advances the internal state to skip \p subsequence subsequences,
+    /// a subsequence consisting of 2 ^ 66 random numbers.
+    /// In other words, this function is equivalent to calling \p discard
+    /// 2 ^ 66 times without using the return value, but is much faster.
     FQUALIFIERS
     void discard_subsequence(unsigned long long subsequence)
     {
@@ -189,11 +191,11 @@ public:
     FQUALIFIERS
     unsigned int next()
     {
-        #if defined(__HIP_PLATFORM_HCC__) || defined(__HIP_PLATFORM_AMD__)
-            unsigned int ret = m_state.result.data[m_state.substate];
-        #else
-            unsigned int ret = (&m_state.result.x)[m_state.substate];
-        #endif
+    #if defined(__HIP_PLATFORM_AMD__)
+        unsigned int ret = m_state.result.data[m_state.substate];
+    #else
+        unsigned int ret = (&m_state.result.x)[m_state.substate];
+    #endif
         m_state.substate++;
         if(m_state.substate == 4)
         {
@@ -221,10 +223,11 @@ protected:
     {
         // Adjust offset for subset
         m_state.substate += offset & 3;
-        offset += m_state.substate < 4 ? 0 : 4;
+        unsigned long long counter_offset = offset / 4;
+        counter_offset += m_state.substate < 4 ? 0 : 1;
         m_state.substate += m_state.substate < 4 ? 0 : -4;
         // Discard states
-        this->discard_state(offset / 4);
+        this->discard_state(counter_offset);
     }
 
     // DOES NOT CALCULATE NEW 4 UINTs (m_state.result)
@@ -266,7 +269,7 @@ protected:
     static uint4 bump_counter(uint4 counter)
     {
         counter.x++;
-        uint add = counter.x == 0 ? 1 : 0;
+        unsigned int add      = counter.x == 0 ? 1 : 0;
         counter.y += add; add = counter.y == 0 ? add : 0;
         counter.z += add; add = counter.z == 0 ? add : 0;
         counter.w += add;
@@ -309,7 +312,7 @@ protected:
 private:
     // Single Philox4x32 round
     FQUALIFIERS
-    uint4 single_round(uint4 counter, uint2 key)
+    static uint4 single_round(uint4 counter, uint2 key)
     {
         // Source: Random123
         unsigned int hi0;
@@ -325,7 +328,7 @@ private:
     }
 
     FQUALIFIERS
-    uint2 bumpkey(uint2 key)
+    static uint2 bumpkey(uint2 key)
     {
         key.x += ROCRAND_PHILOX_W32_0;
         key.y += ROCRAND_PHILOX_W32_1;

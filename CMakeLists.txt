@@ -1,6 +1,6 @@
 # MIT License
 #
-# Copyright (c) 2018-2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2018-2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -39,10 +39,20 @@ else()
       set(CPACK_PACKAGING_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
   endif()
 endif()
+
+# Build options
+option(USE_HIP_CPU "Prefer HIP-CPU runtime instead of HW acceleration" OFF)
+option(BUILD_FORTRAN_WRAPPER "Build Fortran wrapper" OFF)
+option(BUILD_TEST "Build tests (requires googletest)" OFF)
+option(BUILD_BENCHMARK "Build benchmarks" OFF)
+option(BUILD_ADDRESS_SANITIZER "Build with address sanitizer enabled" OFF)
+option(CODE_COVERAGE "Build with code coverage flags (clang only)" OFF)
+
 # CMake modules
 list(APPEND CMAKE_MODULE_PATH
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules
+    $ENV{ROCM_PATH}/lib/cmake/hip
     ${HIP_PATH}/cmake $ENV{ROCM_PATH}/hip/cmake # FindHIP.cmake
     $ENV{ROCM_PATH}/llvm
 )
@@ -64,6 +74,9 @@ set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE CACHE BOOL "Add paths to linker searc
 set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared")
 
 # Include cmake scripts
+include(CMakeDependentOption)
+
+# Get dependencies
 include(cmake/Dependencies.cmake)
 
 option(ROCRAND_CMAKE_HIP_LANGUAGE "Use CMake's HIP language support" OFF)
@@ -83,7 +96,7 @@ else()
   set( AMDGPU_TARGETS "all" CACHE STRING "Compile for which gpu architectures?")
   # Set the AMDGPU_TARGETS
   rocm_check_target_ids(DEFAULT_AMDGPU_TARGETS
-      TARGETS "gfx803;gfx900:xnack-;gfx906:xnack-;gfx908:xnack-;gfx90a:xnack-;gfx90a:xnack+;gfx1030"
+      TARGETS "gfx803;gfx900:xnack-;gfx906:xnack-;gfx908:xnack-;gfx90a:xnack-;gfx90a:xnack+;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102"
   )
   if (AMDGPU_TARGETS)
       if( AMDGPU_TARGETS STREQUAL "all" )
@@ -96,13 +109,15 @@ else()
       set( AMDGPU_TARGETS "${gpus}" CACHE STRING "AMD GPU targets to compile for" FORCE )
   endif()
 
-  # Verify that hcc compiler is used on ROCM platform
+  # Verify that hipcc compiler is used on ROCM platform
   # TODO: Fix VerifyCompiler for Windows
-  if (NOT WIN32)
-    include(cmake/VerifyCompiler.cmake)
-  else()
-    list(APPEND CMAKE_PREFIX_PATH ${ROCM_PATH} $ENV{ROCM_PATH}/hip $ENV{ROCM_PATH}/llvm)
-    find_package(hip REQUIRED CONFIG PATHS ${HIP_DIR} $ENV{ROCM_PATH})
+  if(NOT USE_HIP_CPU)
+    if(NOT WIN32)
+      include(cmake/VerifyCompiler.cmake)
+    else()
+      list(APPEND CMAKE_PREFIX_PATH ${ROCM_PATH} $ENV{ROCM_PATH}/hip $ENV{ROCM_PATH}/llvm)
+      find_package(hip REQUIRED CONFIG PATHS ${HIP_DIR} $ENV{ROCM_PATH})
+    endif()
   endif()
 endif()
 
@@ -117,9 +132,12 @@ set(CMAKE_HIP_STANDARD 11)
 set(CMAKE_HIP_STANDARD_REQUIRED ON)
 set(CMAKE_HIP_EXTENSIONS OFF)
 if(DISABLE_WERROR)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -mf16c")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
 else()
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror -mf16c")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror")
+endif()
+if(CODE_COVERAGE)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-instr-generate -fcoverage-mapping")
 endif()
 
 # HIP on Windows: xhip is required with clang++ to get __half defined
@@ -127,12 +145,10 @@ if (WIN32)
   add_compile_options(-xhip)
 endif()
 
-# Build options
-option(BUILD_FORTRAN_WRAPPER "Build Fortran wrapper" OFF)
-option(BUILD_TEST "Build tests (requires googletest)" OFF)
-option(BUILD_BENCHMARK "Build benchmarks" OFF)
-option(BUILD_ADDRESS_SANITIZER "Build with address sanitizer enabled" OFF)
-
+cmake_dependent_option(BUILD_LEGACY_BENCHMARK "Build the legacy benchmarks" ON "BUILD_BENCHMARK" OFF)
+if(BUILD_LEGACY_BENCHMARK)
+  message(DEPRECATION "Building the legacy benchmarks will be removed in a future release. Consider using the new benchmark suite.")
+endif()
 if(BUILD_ADDRESS_SANITIZER AND BUILD_SHARED_LIBS)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -shared-libasan")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address -shared-libasan")
@@ -140,8 +156,8 @@ if(BUILD_ADDRESS_SANITIZER AND BUILD_SHARED_LIBS)
 endif()
 
 # FOR HANDLING ENABLE/DISABLE OPTIONAL BACKWARD COMPATIBILITY for FILE/FOLDER REORG
-option(BUILD_FILE_REORG_BACKWARD_COMPATIBILITY "Build with file/folder reorg with backward compatibility enabled" ON)
-if(BUILD_FILE_REORG_BACKWARD_COMPATIBILITY)
+option(BUILD_FILE_REORG_BACKWARD_COMPATIBILITY "Build with file/folder reorg with backward compatibility enabled" OFF)
+if(BUILD_FILE_REORG_BACKWARD_COMPATIBILITY AND NOT WIN32)
   rocm_wrap_header_dir(
     "${PROJECT_SOURCE_DIR}/library/include/rocrand"
     HEADER_LOCATION include/rocrand
@@ -153,7 +169,7 @@ if(BUILD_FILE_REORG_BACKWARD_COMPATIBILITY)
 endif()
 
 # Set version variables
-rocm_setup_version( VERSION "2.10.9" )
+rocm_setup_version( VERSION "3.0.0" )
 set ( rocrand_VERSION ${rocRAND_VERSION} )
 # Old-style version number used within the library's API. rocrand_get_version should be modified.
 math(EXPR rocrand_VERSION_NUMBER "${rocRAND_VERSION_MAJOR} * 100000 + ${rocRAND_VERSION_MINOR} * 100 + ${rocRAND_VERSION_PATCH}")
@@ -166,9 +182,7 @@ print_configuration_summary()
 # Tools
 add_subdirectory(tools)
 
-# rocRAND and hipRAND libraries
-# This adds library targets: rocrand, hiprand,
-# also includes Fortran wrapper
+# rocRAND library, adds library target "rocrand" and includes Fortran wrapper
 add_subdirectory(library)
 
 if(BUILD_TEST OR BUILD_BENCHMARK)
@@ -212,7 +226,7 @@ elseif( HIP_RUNTIME STREQUAL "cuda" )
     rocm_package_add_dependencies("hip-nvcc >= 3.5.0")
 endif( )
 
-set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION "\${CPACK_PACKAGING_INSTALL_PREFIX}" "\${CPACK_PACKAGING_INSTALL_PREFIX}/include")
+set(CPACK_RPM_EXCLUDE_FROM_AUTO_FILELIST_ADDITION "\${CPACK_PACKAGING_INSTALL_PREFIX}" )
 
 if(HIP_COMPILER STREQUAL "nvcc")
     set(package_name rocrand-alt)
@@ -221,20 +235,6 @@ else()
 endif()
 
 set(ROCRAND_CONFIG_DIR "\${CPACK_PACKAGING_INSTALL_PREFIX}/${CMAKE_INSTALL_LIBDIR}" CACHE PATH "Path placed into ldconfig file")
-
-if(WIN32)
-    option(BUILD_HIPRAND "Build hipRAND as part of rocRAND" OFF)
-else()
-    option(BUILD_HIPRAND "Build hipRAND as part of rocRAND" ON)
-endif()
-if(BUILD_HIPRAND)
-    if(EXISTS ${CMAKE_SOURCE_DIR}/hipRAND/CMakeLists.txt)
-        set(HIPRAND_SUBMODULE ON CACHE BOOL "Build hipRAND as a submodule of rocRAND." FORCE)
-        add_subdirectory(${CMAKE_SOURCE_DIR}/hipRAND ${CMAKE_BINARY_DIR}/hipRAND)
-    else()
-        message(FATAL_ERROR "BUILD_HIPRAND was set, but the hipRAND submodule could not be found. Use git submodule update --init to clone the hipRAND submodule, or set BUILD_HIPRAND to OFF (--no-hiprand flag for ./install)")
-    endif()
-endif()
 
 rocm_create_package(
     NAME ${package_name}
